@@ -1,7 +1,6 @@
 const leadService = require("../services/leadService");
 
 const getAllLeads = async (req, res) => {
-
     const {
         page = 1,
         limit = 50,
@@ -15,8 +14,7 @@ const getAllLeads = async (req, res) => {
         sort = "id",
         order = "ASC"
     } = req.query;
-
-
+    
     if (after) {
 
         const result =
