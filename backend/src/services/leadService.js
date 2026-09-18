@@ -1,4 +1,10 @@
+
 const pool = require("../db");
+const {
+    getCache,
+    setCache,
+    clearCache
+} = require("../utils/cache");
 
 const SORT_COLUMNS = {
     id: "id",
@@ -95,7 +101,7 @@ const createLead = async (lead) => {
     ];
 
     const result = await pool.query(query, values);
-
+    clearCache();
     return result.rows[0];
 };
 
@@ -137,7 +143,7 @@ const replaceLead = async (id, lead) => {
             `Lead with id ${id} not found`
         );
     }
-
+    clearCache();
     return result.rows[0];
 };
 
@@ -197,7 +203,7 @@ const updateLead = async (id, lead) => {
             `Lead with id ${id} not found`
         );
     }
-
+    clearCache();
     return result.rows[0];
 };
 
@@ -218,8 +224,10 @@ const softDeleteLead = async (id) => {
             `Lead with id ${id} not found`
         );
     }
+    clearCache();
 };
 const buildLeadFilters = (
+    q,
     status,
     branch_code,
     campaign_id,
@@ -229,6 +237,18 @@ const buildLeadFilters = (
     const conditions = ["deleted = FALSE"];
     const values = [];
 
+
+    if (q) {
+        values.push(`%${q}%`);
+
+        conditions.push(`
+        (
+            full_name ILIKE $${values.length}
+            OR phone_mobile ILIKE $${values.length}
+            OR lead_status ILIKE $${values.length}
+        )
+    `);
+    }
     if (status) {
         values.push(status);
         conditions.push(
@@ -284,6 +304,7 @@ const createNextCursor = (row, sortColumn) => {
 const getLeadsByPage = async ({
     page = 1,
     limit = 50,
+    q,
     status,
     branch_code,
     campaign_id,
@@ -300,6 +321,23 @@ const getLeadsByPage = async ({
         order.toUpperCase() === "DESC"
             ? "DESC"
             : "ASC";
+    const cacheKey = JSON.stringify({
+        q: q || "",
+        status: status || "",
+        branch_code: branch_code || "",
+        campaign_id: campaign_id || "",
+        date_from: date_from || "",
+        date_to: date_to || "",
+        page: Number(page),
+        limit: Number(limit),
+        sort: sortColumn,
+        order: sortOrder
+    });
+    const cachedResult = getCache(cacheKey);
+
+    if (cachedResult) {
+        return cachedResult;
+    }
 
     const offset = (page - 1) * limit;
 
@@ -307,6 +345,7 @@ const getLeadsByPage = async ({
         conditions,
         values
     } = buildLeadFilters(
+        q,
         status,
         branch_code,
         campaign_id,
@@ -343,7 +382,7 @@ const getLeadsByPage = async ({
         values
     );
 
-   let nextCursor = null;
+    let nextCursor = null;
 
     if (result.rows.length === Number(limit)) {
 
@@ -351,8 +390,8 @@ const getLeadsByPage = async ({
             result.rows[result.rows.length - 1];
 
         nextCursor = createNextCursor(
-              lastRow,
-              sortColumn
+            lastRow,
+            sortColumn
         );
     }
 
@@ -362,12 +401,17 @@ const getLeadsByPage = async ({
         limit: Number(limit),
         nextCursor
     };
+    setCache(cacheKey, response);
+
+return response;
 };
+
 
 
 const getLeadsByCursor = async ({
     after,
     limit = 50,
+    q,
     status,
     branch_code,
     campaign_id,
@@ -389,6 +433,7 @@ const getLeadsByCursor = async ({
         conditions,
         values
     } = buildLeadFilters(
+        q,
         status,
         branch_code,
         campaign_id,
@@ -409,9 +454,9 @@ const getLeadsByCursor = async ({
 
     if (sortColumn === "date_entered") {
 
-    if (sortOrder === "ASC") {
+        if (sortOrder === "ASC") {
 
-        conditions.push(`
+            conditions.push(`
             (
                 date_entered > $${valueParam}::timestamp
                 OR (
@@ -421,9 +466,9 @@ const getLeadsByCursor = async ({
             )
         `);
 
-    } else {
+        } else {
 
-        conditions.push(`
+            conditions.push(`
             (
                 date_entered < $${valueParam}::timestamp
                 OR (
@@ -432,13 +477,13 @@ const getLeadsByCursor = async ({
                 )
             )
         `);
-    }
+        }
 
-} else {
+    } else {
 
-    if (sortOrder === "ASC") {
+        if (sortOrder === "ASC") {
 
-        conditions.push(`
+            conditions.push(`
             (
                 ${sortColumn} > $${valueParam}
                 OR (
@@ -448,9 +493,9 @@ const getLeadsByCursor = async ({
             )
         `);
 
-    } else {
+        } else {
 
-        conditions.push(`
+            conditions.push(`
             (
                 ${sortColumn} < $${valueParam}
                 OR (
@@ -459,8 +504,8 @@ const getLeadsByCursor = async ({
                 )
             )
         `);
+        }
     }
-}
 
     values.push(cursor.value);
     values.push(cursor.id);
@@ -489,12 +534,12 @@ const getLeadsByCursor = async ({
     `;
 
     console.log("========== CURSOR DEBUG ==========");
-console.log("sortColumn:", sortColumn);
-console.log("sortOrder:", sortOrder);
-console.log("cursor:", cursor);
-console.log("query:", query);
-console.log("values:", values);
-console.log("==================================");
+    console.log("sortColumn:", sortColumn);
+    console.log("sortOrder:", sortOrder);
+    console.log("cursor:", cursor);
+    console.log("query:", query);
+    console.log("values:", values);
+    console.log("==================================");
 
     const result = await pool.query(
         query,

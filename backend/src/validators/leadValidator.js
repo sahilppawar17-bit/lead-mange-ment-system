@@ -187,6 +187,13 @@ const paginationValidation = [
         .isInt({ min: 1, max: 50 })
         .withMessage("limit must be between 1 and 50")
         .toInt(),
+    
+    query("q")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("q must be a string with maximum 100 characters"),
 
     query("after")
         .optional()

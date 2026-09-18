@@ -302,3 +302,10 @@ A Postman collection can be imported to verify all Task 1–4 endpoints.
    * `400` bad request validation responses.
    * `401` unauthorized / `403` forbidden responses.
    * Soft-delete persistence (`deleted = true`).
+
+
+
+
+   #resuable api
+   npm install rxjs  -->It prevents unnecessary API calls.
+   If Enter N wait for seconds for next words otherwise call api

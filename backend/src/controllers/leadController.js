@@ -6,6 +6,7 @@ const getAllLeads = async (req, res) => {
         page = 1,
         limit = 50,
         after,
+        q,
         status,
         branch_code,
         campaign_id,
@@ -22,6 +23,7 @@ const getAllLeads = async (req, res) => {
             await leadService.getLeadsByCursor({
                 after,
                 limit,
+                q,
                 status,
                 branch_code,
                 campaign_id,
@@ -47,6 +49,7 @@ const getAllLeads = async (req, res) => {
         await leadService.getLeadsByPage({
             page,
             limit,
+            q,
             status,
             branch_code,
             campaign_id,

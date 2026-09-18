@@ -1,4 +1,8 @@
-import { useEffect, useState } from "react";
+import {
+    useEffect,
+    useRef,
+    useState
+} from "react";
 import {
     Search,
     Plus,
@@ -9,10 +13,24 @@ import {
     ArrowUp,
     ArrowDown,
 } from "lucide-react";
+import {
+    Subject,
+    of
+} from "rxjs";
+
+import {
+    debounceTime,
+    distinctUntilChanged,
+    switchMap,
+    catchError
+} from "rxjs/operators";
 import { getLeads, deleteLead } from "../services/leadService";
 import { useNavigate } from "react-router-dom";
 
 function Leads() {
+
+    const searchSubject = useRef(new Subject()).current;
+    const searchCache = useRef(new Map()).current;
     const [leads, setLeads] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -46,7 +64,156 @@ function Leads() {
     useEffect(() => {
         fetchLeads();
     }, [page, sort, order]);
+    useEffect(() => {
 
+        const subscription = searchSubject
+            .pipe(
+
+                debounceTime(300),
+
+                distinctUntilChanged(),
+
+                switchMap((searchText) => {
+
+                    const query = searchText.trim();
+
+                    if (!query) {
+                        return getLeads({
+                            page: 1,
+                            limit,
+                            sort,
+                            order
+                        }).then((response) => ({
+                            fromCache: false,
+                            data: response
+                        }));
+                    }
+
+                    const params = {
+                        page: 1,
+                        limit,
+                        sort,
+                        order,
+                        q: query
+                    };
+
+                    if (filters.status) {
+                        params.status = filters.status;
+                    }
+
+                    if (filters.branch_code) {
+                        params.branch_code =
+                            filters.branch_code;
+                    }
+
+                    if (filters.campaign_id) {
+                        params.campaign_id =
+                            filters.campaign_id;
+                    }
+
+                    if (filters.date_from) {
+                        params.date_from =
+                            filters.date_from;
+                    }
+
+                    if (filters.date_to) {
+                        params.date_to =
+                            filters.date_to;
+                    }
+
+                    const cacheKey =
+                        JSON.stringify(params);
+
+                    // Check client cache
+                    if (searchCache.has(cacheKey)) {
+
+                        console.log(
+                            "[CLIENT CACHE HIT]",
+                            cacheKey
+                        );
+
+                        return of({
+                            fromCache: true,
+                            data: searchCache.get(cacheKey)
+                        });
+                    }
+
+                    console.log(
+                        "[CLIENT CACHE MISS]",
+                        cacheKey
+                    );
+
+                    return getLeads(params).then(
+                        (response) => {
+
+                            searchCache.set(
+                                cacheKey,
+                                response
+                            );
+
+                            return {
+                                fromCache: false,
+                                data: response
+                            };
+                        }
+                    );
+
+                }),
+
+                catchError((error) => {
+
+                    console.error(
+                        "Search error:",
+                        error
+                    );
+
+                    setError(
+                        error.response?.data?.error?.message ||
+                        "Failed to search leads."
+                    );
+
+                    return of(null);
+                })
+            )
+            .subscribe((result) => {
+
+                if (!result) {
+                    return;
+                }
+
+                if (result.data === null) {
+                    return;
+                }
+
+                const response = result.data;
+
+                setLeads(
+                    response.data?.rows || []
+                );
+
+                setPage(1);
+
+                setHasNextPage(
+                    response.pagination?.next_cursor != null ||
+                    (
+                        response.data?.rows &&
+                        response.data.rows.length === limit
+                    )
+                );
+
+                setLoading(false);
+            });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+
+    }, [
+        limit,
+        filters,
+        sort,
+        order
+    ]);
     const fetchLeads = async () => {
         try {
             setLoading(true);
@@ -88,8 +255,8 @@ function Leads() {
 
             // Backend returns pagination information
             setHasNextPage(
-            response.pagination?.next_cursor != null ||
-            (data?.rows && data.rows.length === limit)
+                response.pagination?.next_cursor != null ||
+                (data?.rows && data.rows.length === limit)
             );
 
         } catch (err) {
@@ -97,7 +264,7 @@ function Leads() {
 
             setError(
                 err.response?.data?.error?.message ||
-                    "Failed to load leads."
+                "Failed to load leads."
             );
         } finally {
             setLoading(false);
@@ -106,37 +273,37 @@ function Leads() {
 
     // Apply filters
     const handleApplyFilters = () => {
-    setPage(1);
+        setPage(1);
 
-    const params = {
-        page: 1,
-        limit,
-        sort,
-        order,
+        const params = {
+            page: 1,
+            limit,
+            sort,
+            order,
+        };
+
+        if (filters.status) {
+            params.status = filters.status;
+        }
+
+        if (filters.branch_code) {
+            params.branch_code = filters.branch_code;
+        }
+
+        if (filters.campaign_id) {
+            params.campaign_id = filters.campaign_id;
+        }
+
+        if (filters.date_from) {
+            params.date_from = filters.date_from;
+        }
+
+        if (filters.date_to) {
+            params.date_to = filters.date_to;
+        }
+
+        fetchLeadsWithParams(params);
     };
-
-    if (filters.status) {
-        params.status = filters.status;
-    }
-
-    if (filters.branch_code) {
-        params.branch_code = filters.branch_code;
-    }
-
-    if (filters.campaign_id) {
-        params.campaign_id = filters.campaign_id;
-    }
-
-    if (filters.date_from) {
-        params.date_from = filters.date_from;
-    }
-
-    if (filters.date_to) {
-        params.date_to = filters.date_to;
-    }
-
-    fetchLeadsWithParams(params);
-};
 
     // Reset filters
     const handleResetFilters = () => {
@@ -174,7 +341,7 @@ function Leads() {
 
             setError(
                 err.response?.data?.error?.message ||
-                    "Failed to load leads."
+                "Failed to load leads."
             );
         } finally {
             setLoading(false);
@@ -231,16 +398,16 @@ function Leads() {
         fetchLeadsWithParams(params);
     };
 
-    // Client-side search
-    const filteredLeads = leads.filter((lead) => {
-        const searchText = search.toLowerCase();
+    // // Client-side search
+    // const filteredLeads = leads.filter((lead) => {
+    //     const searchText = search.toLowerCase();
 
-        return (
-            lead.full_name?.toLowerCase().includes(searchText) ||
-            lead.phone_mobile?.toLowerCase().includes(searchText) ||
-            lead.lead_status?.toLowerCase().includes(searchText)
-        );
-    });
+    //     return (
+    //         lead.full_name?.toLowerCase().includes(searchText) ||
+    //         lead.phone_mobile?.toLowerCase().includes(searchText) ||
+    //         lead.lead_status?.toLowerCase().includes(searchText)
+    //     );
+    // });
 
     // Sort icon
     const SortIcon = ({ column }) => {
@@ -256,33 +423,33 @@ function Leads() {
     };
 
     const handleDelete = async (id, name) => {
-    const confirmed = window.confirm(
-        `Are you sure you want to delete "${name}"?`
-    );
-
-    if (!confirmed) {
-        return;
-    }
-
-    try {
-        setLoading(true);
-        setError("");
-
-        await deleteLead(id);
-
-        // Reload the current page
-        await fetchLeads();
-    } catch (err) {
-        console.error("Delete lead error:", err);
-
-        setError(
-            err.response?.data?.error?.message ||
-                "Failed to delete lead."
+        const confirmed = window.confirm(
+            `Are you sure you want to delete "${name}"?`
         );
-    } finally {
-        setLoading(false);
-    }
-};
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            setLoading(true);
+            setError("");
+
+            await deleteLead(id);
+
+            // Reload the current page
+            await fetchLeads();
+        } catch (err) {
+            console.error("Delete lead error:", err);
+
+            setError(
+                err.response?.data?.error?.message ||
+                "Failed to delete lead."
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="leads-page">
@@ -313,7 +480,13 @@ function Leads() {
                         type="text"
                         placeholder="Search leads..."
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => {
+                            const value = e.target.value;
+
+                            setSearch(value);
+
+                            searchSubject.next(value);
+                        }}
                     />
                 </div>
 
@@ -488,7 +661,7 @@ function Leads() {
 
                         <tbody>
 
-                            {filteredLeads.length === 0 ? (
+                            {leads.length === 0 ? (
                                 <tr>
                                     <td
                                         colSpan="7"
@@ -498,7 +671,7 @@ function Leads() {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredLeads.map((lead) => (
+                                leads.map((lead) => (
                                     <tr key={lead.id}>
 
                                         <td>
@@ -530,8 +703,8 @@ function Leads() {
                                         <td>
                                             {lead.date_entered
                                                 ? new Date(
-                                                      lead.date_entered
-                                                  ).toLocaleDateString()
+                                                    lead.date_entered
+                                                ).toLocaleDateString()
                                                 : "-"}
                                         </td>
 
@@ -580,31 +753,31 @@ function Leads() {
                         </tbody>
                     </table>
                 )}
-                    {!loading && !error && (
-    <div className="pagination">
+                {!loading && !error && (
+                    <div className="pagination">
 
-        <button
-            className="secondary-button"
-            disabled={page === 1}
-            onClick={() => setPage((previous) => previous - 1)}
-        >
-            Previous
-        </button>
+                        <button
+                            className="secondary-button"
+                            disabled={page === 1}
+                            onClick={() => setPage((previous) => previous - 1)}
+                        >
+                            Previous
+                        </button>
 
-        <span className="page-number">
-            Page {page}
-        </span>
+                        <span className="page-number">
+                            Page {page}
+                        </span>
 
-        <button
-            className="secondary-button"
-            disabled={!hasNextPage}
-            onClick={() => setPage((previous) => previous + 1)}
-        >
-            Next
-        </button>
+                        <button
+                            className="secondary-button"
+                            disabled={!hasNextPage}
+                            onClick={() => setPage((previous) => previous + 1)}
+                        >
+                            Next
+                        </button>
 
-    </div>
-)}
+                    </div>
+                )}
             </div>
         </div>
     );
