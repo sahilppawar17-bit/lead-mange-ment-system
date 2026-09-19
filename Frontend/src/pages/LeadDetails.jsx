@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-
+import {
+  maskPhoneWithCountryCode
+} from "../utils/masking";
 import { getLeadById } from "../services/leadService";
 
 function LeadDetails() {
@@ -27,7 +29,7 @@ function LeadDetails() {
 
         setError(
           err.response?.data?.error?.message ||
-            "Failed to load lead."
+          "Failed to load lead."
         );
       } finally {
         setLoading(false);
@@ -123,14 +125,14 @@ function LeadDetails() {
 
           <div className="detail-item">
             <span>Mobile Number</span>
-            <strong>{lead.phone_mobile || "-"}</strong>
-          </div>
 
-          <div className="detail-item">
-            <span>Country Code</span>
-            <strong>{lead.country_code || "-"}</strong>
+            <strong>
+              {maskPhoneWithCountryCode(
+                lead.country_code,
+                lead.phone_mobile
+              )}
+            </strong>
           </div>
-
           <div className="detail-item">
             <span>Lead Status</span>
             <strong>{lead.lead_status || "-"}</strong>
@@ -141,8 +143,8 @@ function LeadDetails() {
             <strong>
               {lead.date_entered
                 ? new Date(
-                    lead.date_entered
-                  ).toLocaleString()
+                  lead.date_entered
+                ).toLocaleString()
                 : "-"}
             </strong>
           </div>

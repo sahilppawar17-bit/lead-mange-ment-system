@@ -3,6 +3,7 @@ import {
     useRef,
     useState
 } from "react";
+
 import {
     Search,
     Plus,
@@ -26,7 +27,9 @@ import {
 } from "rxjs/operators";
 import { getLeads, deleteLead } from "../services/leadService";
 import { useNavigate } from "react-router-dom";
-
+import {
+    maskPhoneWithCountryCode
+} from "../utils/masking";
 function Leads() {
 
     const searchSubject = useRef(new Subject()).current;
@@ -624,9 +627,6 @@ function Leads() {
                                     Phone
                                 </th>
 
-                                <th>
-                                    Country
-                                </th>
 
                                 <th
                                     onClick={() =>
@@ -685,11 +685,10 @@ function Leads() {
                                         </td>
 
                                         <td>
-                                            {lead.phone_mobile || "-"}
-                                        </td>
-
-                                        <td>
-                                            {lead.country_code || "-"}
+                                            {maskPhoneWithCountryCode(
+                                                lead.country_code,
+                                                lead.phone_mobile
+                                            )}
                                         </td>
 
                                         <td>
