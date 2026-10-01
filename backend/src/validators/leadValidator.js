@@ -142,13 +142,15 @@ const updateLeadValidator = [
         .isInt({ min: 1, max: 60})
         .withMessage("age must be an integer between 1 and 60")
         .toInt(),
-     body("phone_mobile")
-    .notEmpty()
-    .withMessage("phone_mobile is required")
-    .isString()
-    .withMessage("phone_mobile must be a string")
-    .matches(/^\d{10}$/)
-    .withMessage("phone_mobile must be exactly 10 digits"),
+
+    body("phone_mobile")
+        .optional()
+        .isLength({ min: 10, max: 10})
+        .withMessage("phone_mobile must be exactly 10 digits")
+        .isString()
+        .withMessage("phone_mobile must be a string")
+        .matches(/^\d{10}$/)
+        .withMessage("phone_mobile must be exactly 10 digits"),
 
     body("country_code")
         .optional()

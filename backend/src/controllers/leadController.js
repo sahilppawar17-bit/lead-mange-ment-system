@@ -33,7 +33,9 @@ const getAllLeads = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            data: result.rows,
+            data: {
+                rows: result.rows
+            },
             pagination: {
                 type: "cursor",
                 limit: Number(limit),

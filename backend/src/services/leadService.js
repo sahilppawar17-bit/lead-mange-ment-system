@@ -395,7 +395,7 @@ const getLeadsByPage = async ({
         );
     }
 
-    return {
+    const response = {
         rows: result.rows,
         page: Number(page),
         limit: Number(limit),
@@ -533,18 +533,40 @@ const getLeadsByCursor = async ({
         LIMIT $${limitParam}
     `;
 
-    console.log("========== CURSOR DEBUG ==========");
-    console.log("sortColumn:", sortColumn);
-    console.log("sortOrder:", sortOrder);
-    console.log("cursor:", cursor);
-    console.log("query:", query);
-    console.log("values:", values);
-    console.log("==================================");
+const cacheKey = JSON.stringify({
+    q,
+    status,
+    branch_code,
+    campaign_id,
+    date_from,
+    date_to,
+    after,
+    limit,
+    sort,
+    order
+});
 
-    const result = await pool.query(
-        query,
-        values
-    );
+const cached = getCache(cacheKey);
+
+if (cached) {
+    console.log("[CURSOR CACHE HIT]");
+    return cached;
+}
+
+console.log("[CURSOR CACHE MISS]");
+
+console.log("========== CURSOR DEBUG ==========");
+console.log("sortColumn:", sortColumn);
+console.log("sortOrder:", sortOrder);
+console.log("cursor:", cursor);
+console.log("query:", query);
+console.log("values:", values);
+console.log("==================================");
+
+const result = await pool.query(
+    query,
+    values
+);
 
     const rows = result.rows;
 
@@ -561,10 +583,13 @@ const getLeadsByCursor = async ({
         );
     }
 
-    return {
+    const response = {
         rows,
         nextCursor
     };
+    setCache(cacheKey, response);
+
+    return response;
 };
 
 
