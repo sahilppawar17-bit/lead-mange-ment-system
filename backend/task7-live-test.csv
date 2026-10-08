@@ -1,0 +1,4 @@
+full_name,age,phone_mobile,country_code,loan_account_no,next_emi_date_dom,emi_amount,branch_code,lead_status
+Amit Kumar,32,9876543211,+91,TEST003,2026-11-15,12000,MUM01,High
+Priya Sharma,28,9876543212,+91,TEST004,2026-11-20,18000,BLR01,Medium
+Rahul Duplicate,30,9876543210,+91,TEST002,2026-11-25,15000,MUM01,Low
