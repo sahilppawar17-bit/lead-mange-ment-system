@@ -89,9 +89,28 @@ const getImportJob = async (jobId) => {
     return result.rows[0] || null;
 };
 
+/* Mark jobs left in processing state by a previous server
+ * instance as failed, avoiding automatic re-import of partial data.*/
+const recoverAbandonedImportJobs = async () => {
+    const result = await pool.query(`
+        UPDATE import_jobs
+        SET
+            status = 'failed',
+            completed_at = COALESCE(
+                completed_at,
+                CURRENT_TIMESTAMP
+            )
+        WHERE status = 'processing'
+        RETURNING id, original_filename
+    `);
+
+    return result.rows;
+};
+
 module.exports = {
     updateImportProgress,
     completeImportJob,
     failImportJob,
-    getImportJob
+    getImportJob,
+    recoverAbandonedImportJobs
 };

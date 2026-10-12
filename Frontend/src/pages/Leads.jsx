@@ -622,11 +622,21 @@ function Leads() {
                                 <th>
                                     Name
                                 </th>
-
                                 <th>
                                     Phone
                                 </th>
-
+                                <th>
+                                    Loan Account No.
+                                </th>
+                                <th>
+                                    Next EMI Date
+                                </th>
+                                <th>
+                                    EMI Amount
+                                </th>
+                                <th>
+                                    Branch Code
+                                </th>
 
                                 <th
                                     onClick={() =>
@@ -664,7 +674,7 @@ function Leads() {
                             {leads.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan="7"
+                                        colSpan="10"
                                         className="empty-message"
                                     >
                                         No Leads Found.
@@ -690,6 +700,25 @@ function Leads() {
                                                 lead.phone_mobile
                                             )}
                                         </td>
+
+                                        <td>{lead.loan_account_no || "-"}</td>
+
+                                        <td>
+                                            {lead.next_emi_date_dom
+                                                ? String(lead.next_emi_date_dom).slice(0, 10)
+                                                : "-"}
+                                        </td>
+
+                                        <td>
+                                            {lead.emi_amount != null
+                                                ? Number(lead.emi_amount).toLocaleString("en-IN", {
+                                                        minimumFractionDigits: 2,
+                                                        maximumFractionDigits: 2,
+                                                })
+                                                : "-"}
+                                        </td>
+
+                                        <td>{lead.branch_code || "-"}</td>
 
                                         <td>
                                             <span

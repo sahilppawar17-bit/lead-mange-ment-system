@@ -1,18 +1,25 @@
 import { useState } from "react";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, UserPlus, FileSpreadsheet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createLead } from "../services/leadService";
+import BulkImport from "./BulkImport";
 
 function AddLead() {
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    full_name: "",
-    age: "",
-    phone_mobile: "",
-    country_code: "",
-    lead_status: "",
-  });
+  const [activeTab, setActiveTab] = useState("single");
+
+ const [formData, setFormData] = useState({
+  full_name: "",
+  age: "",
+  phone_mobile: "",
+  country_code: "",
+  loan_account_no: "",
+  next_emi_date_dom: "",
+  emi_amount: "",
+  branch_code: "",
+  lead_status: "",
+});
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -72,7 +79,30 @@ function AddLead() {
 
       </div>
 
-      <div className="lead-form-card">
+      {/* Purpose: Let users choose manual entry or bulk file import. */}
+        <div className="lead-entry-tabs">
+          {activeTab === "bulk" && <BulkImport />}
+         <button
+          type="button"
+          className={`lead-entry-tab ${activeTab === "single" ? "active" : ""}`}
+          onClick={() => setActiveTab("single")}
+        >
+          <UserPlus size={18} />
+            Add Single Lead
+          </button>
+
+          <button
+            type="button"
+            className={`lead-entry-tab ${activeTab === "bulk" ? "active" : ""}`}
+            onClick={() => setActiveTab("bulk")}
+          >
+          <FileSpreadsheet size={18} />
+              Bulk Import (CSV / XLSX)
+           </button>
+        </div>
+
+      {activeTab === "single" && (
+        <div className="lead-form-card">
 
         {error && (
           <div className="form-error">
@@ -144,6 +174,72 @@ function AddLead() {
               />
             </div>
 
+            <div className="form-field">
+  <label>
+    Loan Account Number <span>*</span>
+  </label>
+  <input
+    type="text"
+    name="loan_account_no"
+    value={formData.loan_account_no}
+    onChange={handleChange}
+    placeholder="Enter loan account number"
+    required
+    maxLength={100}
+  />
+</div>
+
+{/* Next EMI Date */}
+<div className="form-field">
+  <label>
+    Next EMI Date <span>*</span>
+  </label>
+  <input
+    type="date"
+    name="next_emi_date_dom"
+    value={formData.next_emi_date_dom}
+    onChange={handleChange}
+    required
+  />
+</div>
+
+{/* EMI Amount */}
+<div className="form-field">
+  <label>
+    EMI Amount <span>*</span>
+  </label>
+  <input
+    type="number"
+    name="emi_amount"
+    value={formData.emi_amount}
+    onChange={handleChange}
+    placeholder="Enter EMI amount"
+    min="0"
+    step="0.01"
+    required
+  />
+</div>
+
+{/* Branch Code */}
+<div className="form-field">
+  <label>
+    Branch Code <span>*</span>
+  </label>
+  <select
+    name="branch_code"
+    value={formData.branch_code}
+    onChange={handleChange}
+    required
+  >
+    <option value="">Select branch</option>
+    <option value="BLR01">BLR01</option>
+    <option value="DEL01">DEL01</option>
+    <option value="HYD01">HYD01</option>
+    <option value="MUM01">MUM01</option>
+    <option value="PUN01">PUN01</option>
+  </select>
+</div>
+
             {/* Status */}
 
             <div className="form-field">
@@ -188,7 +284,7 @@ function AddLead() {
         </form>
 
       </div>
-
+      )}
     </div>
   );
 }

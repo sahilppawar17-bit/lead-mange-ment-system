@@ -4,7 +4,7 @@ const express = require("express");
 
 const router = express.Router();
 
-const { createImport, getImportStatus } = require("../controllers/importController");
+const { createImport, getImportStatus , downloadImportErrors} = require("../controllers/importController");
 
 const { upload } = require("../middleware/uploadMiddleware");
 const requireAuth = require("../middleware/requireAuth");
@@ -27,8 +27,19 @@ router.post(
 
 router.get(
     "/:jobId/status",
+    requireAuth,
+    requireRole(["admin", "team_lead"]),
     getImportStatus
 );
 
+
+// Download the CSV containing rejected import rows.
+
+router.get(
+    "/:jobId/errors",
+    requireAuth,
+    requireRole(["admin", "team_lead"]),
+    downloadImportErrors
+);
 
 module.exports = router;

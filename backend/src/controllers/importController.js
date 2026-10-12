@@ -4,6 +4,10 @@
 const { randomUUID } = require("crypto");
 const pool = require("../db");
 
+//Utilities for safely locating and downloading import error reports.
+const fs = require("fs");
+const path = require("path");
+
 //Service used to retrieve import job progress.
 const {getImportJob} = require("../services/importJobService");
 
@@ -95,7 +99,7 @@ const getImportStatus = async (req, res, next) => {
                 processed: job.processed,
                 succeeded: job.succeeded,
                 failed: job.failed,
-                errorReportPath: job.error_report_path,
+                errorReportUrl: job.error_report_path? `/api/imports/${job.id}/errors`: null,
                 createdAt: job.created_at,
                 startedAt: job.started_at,
                 completedAt: job.completed_at
@@ -106,7 +110,59 @@ const getImportStatus = async (req, res, next) => {
     }
 };
 
+// Download the error report generated for an import job.
+
+const downloadImportErrors = async (req, res, next) => {
+    try {
+        const { jobId } = req.params;
+
+        const job = await getImportJob(jobId);
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                error: {
+                    code: "IMPORT_JOB_NOT_FOUND",
+                    message: "Import job not found."
+                }
+            });
+        }
+
+        if (!job.error_report_path) {
+            return res.status(404).json({
+                success: false,
+                error: {
+                    code: "ERROR_REPORT_NOT_AVAILABLE",
+                    message: "No error report is available for this import."
+                }
+            });
+        }
+
+        const reportPath = path.resolve(
+            job.error_report_path
+        );
+
+        if (!fs.existsSync(reportPath)) {
+            return res.status(404).json({
+                success: false,
+                error: {
+                    code: "ERROR_REPORT_NOT_FOUND",
+                    message: "The error report file could not be found."
+                }
+            });
+        }
+
+        return res.download(
+            reportPath,
+            `${jobId}-errors.csv`
+        );
+    } catch (error) {
+        return next(error);
+    }
+};
+
 module.exports = {
     createImport,
-    getImportStatus
+    getImportStatus,
+    downloadImportErrors
 };

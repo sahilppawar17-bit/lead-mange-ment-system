@@ -16,46 +16,52 @@ const {createErrorReport } = require("../services/errorReportService")
 
 const {updateImportProgress, completeImportJob, failImportJob} = require("../services/importJobService")
 
+// Stream XLSX rows when the uploaded file has an .xlsx extension.
+const {readXlsxRows} = require("../services/xlsxImportService");
+
+//Prevent the in-process import worker from processing
+// multiple large import jobs concurrently.
+let isWorkerBusy = false;
+
 const processNextImportJob = async () => {
     const result = await pool.query(
-    `
-    SELECT
-        id,
-        original_filename,
-        file_path,
-        status
-    FROM import_jobs
-    WHERE status = 'queued'
-    ORDER BY created_at ASC
-    LIMIT 1
-    `
-);
+        `
+        WITH next_job AS (
+            SELECT id
+            FROM import_jobs
+            WHERE status = 'queued'
+            ORDER BY created_at ASC
+            FOR UPDATE SKIP LOCKED
+            LIMIT 1
+        )
+        UPDATE import_jobs AS jobs
+        SET
+            status = 'processing',
+            started_at = CURRENT_TIMESTAMP
+        FROM next_job
+        WHERE jobs.id = next_job.id
+        RETURNING
+            jobs.id,
+            jobs.original_filename,
+            jobs.file_path,
+            jobs.status
+        `
+    );
 
     if (result.rows.length === 0) {
         return null;
     }
 
-    const job = result.rows[0];
-
-    await pool.query(
-        `
-        UPDATE import_jobs
-        SET
-            status = 'processing',
-            started_at = CURRENT_TIMESTAMP
-        WHERE id = $1
-        `,
-        [job.id]
-    );
-
-    return job;
+    return result.rows[0];
 };
 
-// Process one CSV import as a stream, validate rows,
-// write errors directly to an error report, and insert valid
-// rows into PostgreSQL in batches of 500.
+// Process CSV/XLSX rows through one common validation,
+// duplicate-checking, batching, and error-reporting pipeline.
 
-const processCsvImport = async (job) => {
+const processImportRows = async (
+    job,
+    rowStream
+) => {
     const BATCH_SIZE = 500;
 
     let total = 0;
@@ -65,85 +71,95 @@ const processCsvImport = async (job) => {
 
     let validBatch = [];
 
-    const errorReport = createErrorReport(job.id);
+    const errorReport =
+        createErrorReport(job.id);
+
+    await errorReport.ready;
 
     const loanAccountTracker =
         createLoanAccountTracker();
 
-    const parser = fs
-        .createReadStream(job.file_path)
-        .pipe(
-            parse({
-                columns: true,
-                skip_empty_lines: true,
-                trim: true,
-                delimiter: ","
-            })
-        );
 
-    const processBatch = async (batch) => {
-        if (batch.length === 0) {
-            return;
-        }
+/* Process a batch of valid rows, reject existing loan accounts,
+ * and record any database-level duplicate conflicts in the error report.*/
+const processBatch = async (batch) => {
+    if (batch.length === 0) {
+        return;
+    }
 
-        const loanAccounts = batch.map(
-            (item) =>
-                String(item.loan_account_no).trim()
-        );
+    const loanAccounts = batch.map((item) =>
+        String(item.loan_account_no).trim()
+    );
 
-        const existingAccounts =
-            await findExistingLoanAccounts(
-                loanAccounts
+    const existingAccounts = await findExistingLoanAccounts(
+        loanAccounts
+    );
+
+    const rowsToInsert = [];
+
+    // Reject loan accounts that already exist before insertion.
+    for (const item of batch) {
+        const loanAccountNo = String(item.loan_account_no).trim();
+
+        if (existingAccounts.has(loanAccountNo)) {
+            failed++;
+            processed++;
+
+            await errorReport.writeError(
+                item.__rowNumber,
+                [`loan_account_no ${loanAccountNo} already exists`]
             );
 
-        const rowsToInsert = [];
-
-        for (const item of batch) {
-            const loanAccountNo =
-                String(item.loan_account_no).trim();
-
-            if (existingAccounts.has(loanAccountNo)) {
-                failed++;
-                processed++;
-
-                errorReport.writeError(
-                    item.__rowNumber,
-                    [
-                        `loan_account_no ${loanAccountNo} already exists`
-                    ]
-                );
-
-                continue;
-            }
-
-            rowsToInsert.push(item);
+            continue;
         }
 
-        if (rowsToInsert.length === 0) {
-            return;
+        rowsToInsert.push(item);
+    }
+
+    if (rowsToInsert.length === 0) {
+        return;
+    }
+
+    // Insert remaining rows and identify which ones PostgreSQL accepted.
+    const insertedAccounts = await insertLeadBatch(rowsToInsert);
+    const insertedAccountSet = new Set(insertedAccounts);
+
+    succeeded += insertedAccounts.length;
+
+    // Count every attempted row and report rows skipped by a database conflict.
+    for (const item of rowsToInsert) {
+        const loanAccountNo = String(item.loan_account_no).trim();
+
+        processed++;
+
+        if (!insertedAccountSet.has(loanAccountNo)) {
+            failed++;
+
+            await errorReport.writeError(
+                item.__rowNumber,
+                [`loan_account_no ${loanAccountNo} already exists`]
+            );
         }
+    }
+};
 
-        const insertedAccounts =
-            await insertLeadBatch(rowsToInsert);
-
-        succeeded += insertedAccounts.length;
-        processed += rowsToInsert.length;
-    };
 
     try {
-        for await (const row of parser) {
+        for await (const row of rowStream) {
             total++;
 
-            const rowNumber = total + 1;
+            const rowNumber =
+                total + 1;
 
             const rowErrors =
                 validateImportRow(row);
 
             if (rowErrors.length === 0) {
                 const isUniqueInFile =
-                    loanAccountTracker.checkAndAdd(
-                        row.loan_account_no
-                    );
+                    loanAccountTracker
+                        .checkAndAdd(
+                            row.loan_account_no
+                        );
 
                 if (!isUniqueInFile) {
                     rowErrors.push(
@@ -156,7 +172,7 @@ const processCsvImport = async (job) => {
                 failed++;
                 processed++;
 
-                errorReport.writeError(
+              await errorReport.writeError(
                     rowNumber,
                     rowErrors
                 );
@@ -164,49 +180,63 @@ const processCsvImport = async (job) => {
                 continue;
             }
 
-            row.__rowNumber = rowNumber;
+            row.__rowNumber =
+                rowNumber;
 
             validBatch.push(row);
 
-            if (validBatch.length >= BATCH_SIZE) {
-    await processBatch(validBatch);
+            if (
+                validBatch.length >=
+                BATCH_SIZE
+            ) {
+                await processBatch(
+                    validBatch
+                );
 
-    validBatch = [];
+                validBatch = [];
 
-    await updateImportProgress(job.id, {
-        total,
-        processed,
-        succeeded,
-        failed
-    });
-}
+                await updateImportProgress(
+                    job.id,
+                    {
+                        total,
+                        processed,
+                        succeeded,
+                        failed
+                    }
+                );
+            }
         }
 
         if (validBatch.length > 0) {
-    await processBatch(validBatch);
+            await processBatch(
+                validBatch
+            );
 
-    validBatch = [];
+            validBatch = [];
 
-    await updateImportProgress(job.id, {
-        total,
-        processed,
-        succeeded,
-        failed
-    });
-}
+            await updateImportProgress(
+                job.id,
+                {
+                    total,
+                    processed,
+                    succeeded,
+                    failed
+                }
+            );
+        }
 
         await errorReport.close();
 
         await completeImportJob(
-    job.id,
-    {
-        total,
-        processed,
-        succeeded,
-        failed
-    },
-    errorReport.filePath
-);
+            job.id,
+            {
+                total,
+                processed,
+                succeeded,
+                failed
+            },
+            errorReport.filePath
+        );
 
         return {
             total,
@@ -216,21 +246,61 @@ const processCsvImport = async (job) => {
             errorReportPath:
                 errorReport.filePath
         };
-    }  catch (error) {
-    try {
-        await errorReport.close();
-    } catch (closeError) {
-        console.error(
-            "[Import Worker] Error closing error report:",
-            closeError
+    } catch (error) {
+        try {
+            await errorReport.close();
+        } catch (closeError) {
+            console.error(
+                "[Import Worker] Error closing error report:",
+                closeError
+            );
+        }
+
+        await failImportJob(
+            job.id
         );
+
+        throw error;
     }
-
-    await failImportJob(job.id);
-
-    throw error;
-}
 };
+
+//Process a CSV import using the common import pipeline.
+
+const processCsvImport = async (job) => {
+    const rowStream =
+        fs
+            .createReadStream(
+                job.file_path
+            )
+            .pipe(
+                parse({
+                    columns: true,
+                    skip_empty_lines: true,
+                    trim: true,
+                    delimiter: ","
+                })
+            );
+
+    return processImportRows(
+        job,
+        rowStream
+    );
+};
+
+// Process an XLSX import using the common streaming import pipeline.
+
+const processXlsxImport = async (job) => {
+    const rowStream =
+        readXlsxRows(
+            job.file_path
+        );
+
+    return processImportRows(
+        job,
+        rowStream
+    );
+};
+
 //Read a CSV import file as a stream and process one row at a time.
 
 const readCsvFile = async (filePath) => {
@@ -295,45 +365,118 @@ const readCsvFile = async (filePath) => {
 };
 
 // Continuously look for queued import jobs and
-// process them in the background.
+// process them in the background without overlapping jobs.
 
 const startImportWorker = () => {
-    setInterval(async () => {
-        try {
-            const job = await processNextImportJob();
+    let isStopping = false;
+    let activeWorkerTask = null;
 
-            if (!job) {
-                return;
-            }
+    const runWorker = async () => {
+        if (isStopping || isWorkerBusy) {
+            return;
+        }
 
-            console.log(
-                `[Import Worker] Started job ${job.id} (${job.original_filename})`
-            );
+        isWorkerBusy = true;
 
-            const result =
-                await processCsvImport(job);
+        activeWorkerTask = (async () => {
+    let job = null;
 
-            console.log(
-                `[Import Worker] Completed job ${job.id}`
-            );
+    try {
+        job = await processNextImportJob();
 
-            console.log(
-                `[Import Worker] Total: ${result.total}, ` +
-                `Succeeded: ${result.succeeded}, ` +
-                `Failed: ${result.failed}`
-            );
-        } catch (error) {
-            console.error(
-                "[Import Worker] Error:",
-                error
+        if (!job) {
+            return;
+        }
+
+        console.log(
+            `[Import Worker] Started job ${job.id} (${job.original_filename})`
+        );
+
+        const extension = require("path")
+            .extname(job.original_filename)
+            .toLowerCase();
+
+        let result;
+
+        if (extension === ".csv") {
+            result = await processCsvImport(job);
+        } else if (extension === ".xlsx") {
+            result = await processXlsxImport(job);
+        } else {
+            throw new Error(
+                `Unsupported import file type: ${extension}`
             );
         }
+
+        console.log(
+            `[Import Worker] Completed job ${job.id}`
+        );
+
+        console.log(
+            `[Import Worker] Total: ${result.total}, ` +
+            `Succeeded: ${result.succeeded}, ` +
+            `Failed: ${result.failed}`
+        );
+    } catch (error) {
+        console.error(
+            "[Import Worker] Error:",
+            error
+        );
+
+        // Mark the job failed if it was claimed but did not
+        // reach a completed or failed state through its processor.
+        if (job) {
+            try {
+                await pool.query(
+                    `
+                    UPDATE import_jobs
+                    SET status = 'failed',
+                        completed_at = CURRENT_TIMESTAMP
+                    WHERE id = $1
+                      AND status = 'processing'
+                    `,
+                    [job.id]
+                );
+            } catch (updateError) {
+                console.error(
+                    "[Import Worker] Could not mark job failed:",
+                    updateError
+                );
+            }
+        }
+    } finally {
+        isWorkerBusy = false;
+        activeWorkerTask = null;
+    }
+})();
+        await activeWorkerTask;
+    };
+
+    const workerInterval = setInterval(() => {
+        void runWorker();
     }, 5000);
+
+    return async () => {
+        isStopping = true;
+        clearInterval(workerInterval);
+
+        if (activeWorkerTask) {
+            console.log(
+                "[Import Worker] Waiting for active import to finish..."
+            );
+
+            await activeWorkerTask;
+        }
+
+        console.log("[Import Worker] Stopped.");
+    };
 };
 
 module.exports = {
     processNextImportJob,
     startImportWorker,
     readCsvFile,
-    processCsvImport
+    processCsvImport,
+    processXlsxImport,
+    processImportRows
 };

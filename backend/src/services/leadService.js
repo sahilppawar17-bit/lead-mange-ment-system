@@ -32,6 +32,10 @@ const getAllLeads = async () => {
             age,
             phone_mobile,
             country_code,
+            loan_account_no,
+            next_emi_date_dom,
+            emi_amount,
+            branch_code,
             lead_status,
             date_entered
         FROM leads
@@ -53,6 +57,11 @@ const getLeadById = async (id) => {
             age,
             phone_mobile,
             country_code,
+            country_code,
+            loan_account_no,
+            TO_CHAR(next_emi_date_dom, 'YYYY-MM-DD') AS next_emi_date_dom,
+            emi_amount,
+            branch_code,
             lead_status,
             date_entered
         FROM leads
@@ -79,15 +88,23 @@ const createLead = async (lead) => {
             age,
             phone_mobile,
             country_code,
+            loan_account_no,
+            next_emi_date_dom,
+            emi_amount,
+            branch_code,
             lead_status
         )
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING
             id,
             full_name,
             age,
             phone_mobile,
             country_code,
+            loan_account_no,
+            next_emi_date_dom,
+            emi_amount,
+            branch_code,
             lead_status,
             date_entered
     `;
@@ -97,11 +114,17 @@ const createLead = async (lead) => {
         lead.age,
         lead.phone_mobile,
         lead.country_code,
+        lead.loan_account_no,
+        lead.next_emi_date_dom,
+        lead.emi_amount,
+        lead.branch_code,
         lead.lead_status
     ];
 
     const result = await pool.query(query, values);
+
     clearCache();
+
     return result.rows[0];
 };
 
@@ -114,8 +137,12 @@ const replaceLead = async (id, lead) => {
             age = $2,
             phone_mobile = $3,
             country_code = $4,
-            lead_status = $5
-        WHERE id = $6
+            loan_account_no = $5,
+            next_emi_date_dom = $6,
+            emi_amount = $7,
+            branch_code = $8,
+            lead_status = $9
+        WHERE id = $10
           AND deleted = FALSE
         RETURNING
             id,
@@ -123,6 +150,10 @@ const replaceLead = async (id, lead) => {
             age,
             phone_mobile,
             country_code,
+            loan_account_no,
+            TO_CHAR(next_emi_date_dom, 'YYYY-MM-DD') AS next_emi_date_dom,
+            emi_amount,
+            branch_code,
             lead_status,
             date_entered
     `;
@@ -132,6 +163,10 @@ const replaceLead = async (id, lead) => {
         lead.age,
         lead.phone_mobile,
         lead.country_code,
+        lead.loan_account_no,
+        lead.next_emi_date_dom,
+        lead.emi_amount,
+        lead.branch_code,
         lead.lead_status,
         id
     ];
@@ -143,7 +178,9 @@ const replaceLead = async (id, lead) => {
             `Lead with id ${id} not found`
         );
     }
+
     clearCache();
+
     return result.rows[0];
 };
 
@@ -154,6 +191,10 @@ const updateLead = async (id, lead) => {
         "age",
         "phone_mobile",
         "country_code",
+        "loan_account_no",
+        "next_emi_date_dom",
+        "emi_amount",
+        "branch_code",
         "lead_status"
     ];
 
@@ -164,15 +205,12 @@ const updateLead = async (id, lead) => {
 
     for (const field of allowedFields) {
         if (lead[field] !== undefined) {
-            fields.push(
-                `${field} = $${parameterIndex}`
-            );
-
+            fields.push(`${field} = $${parameterIndex}`);
             values.push(lead[field]);
-
             parameterIndex++;
         }
     }
+
     if (fields.length === 0) {
         throw new ValidationError(
             "At least one field is required for update"
@@ -192,6 +230,10 @@ const updateLead = async (id, lead) => {
             age,
             phone_mobile,
             country_code,
+            loan_account_no,
+            next_emi_date_dom,
+            emi_amount,
+            branch_code,
             lead_status,
             date_entered
     `;
@@ -203,10 +245,11 @@ const updateLead = async (id, lead) => {
             `Lead with id ${id} not found`
         );
     }
+
     clearCache();
+
     return result.rows[0];
 };
-
 
 const softDeleteLead = async (id) => {
     const query = `
@@ -366,6 +409,10 @@ const getLeadsByPage = async ({
             age,
             phone_mobile,
             country_code,
+            loan_account_no,
+            next_emi_date_dom,
+            emi_amount,
+            branch_code,
             lead_status,
             date_entered
         FROM leads
@@ -521,9 +568,12 @@ const getLeadsByCursor = async ({
             age,
             phone_mobile,
             country_code,
+            loan_account_no,
+            next_emi_date_dom,
+            emi_amount,
+            branch_code,
             lead_status,
             date_entered,
-            branch_code,
             campaign_id
         FROM leads
         WHERE ${conditions.join(" AND ")}

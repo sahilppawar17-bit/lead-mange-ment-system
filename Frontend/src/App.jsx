@@ -11,6 +11,7 @@ import AddLead from "./pages/AddLead"
 import LeadDetails from "./pages/LeadDetails";
 import EditLead from "./pages/EditLead";
 import Settings from "./pages/Settings";
+import BulkImport from "./pages/BulkImport";
 
 function DashboardLayout({ children }) {
   return (
@@ -96,6 +97,17 @@ function App() {
               <ProtectedRoute>
                 <DashboardLayout>
                   <Settings/>
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+        />
+
+        <Route
+            path="/imports"
+            element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <BulkImport />
                 </DashboardLayout>
               </ProtectedRoute>
             }

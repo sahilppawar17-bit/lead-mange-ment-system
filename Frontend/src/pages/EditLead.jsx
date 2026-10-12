@@ -16,6 +16,10 @@ function EditLead() {
     age: "",
     phone_mobile: "",
     country_code: "",
+    loan_account_no: "",
+    next_emi_date_dom: "",
+    emi_amount: "",
+    branch_code: "",
     lead_status: "",
   });
 
@@ -35,6 +39,12 @@ function EditLead() {
           age: lead.age || "",
           phone_mobile: lead.phone_mobile || "",
           country_code: lead.country_code || "",
+          loan_account_no: lead.loan_account_no || "",
+          next_emi_date_dom: lead.next_emi_date_dom
+              ? String(lead.next_emi_date_dom).slice(0, 10)
+              : "",
+          emi_amount: lead.emi_amount ?? "",
+          branch_code: lead.branch_code || "",
           lead_status: lead.lead_status || "",
         });
       } catch (err) {
@@ -202,6 +212,67 @@ function EditLead() {
                 </option>
               </select>
             </div>
+
+            <div className="form-field">
+  <label>
+    Loan Account Number <span>*</span>
+  </label>
+  <input
+    type="text"
+    name="loan_account_no"
+    value={formData.loan_account_no}
+    onChange={handleChange}
+    maxLength="100"
+    required
+  />
+</div>
+
+<div className="form-field">
+  <label>
+    Next EMI Date <span>*</span>
+  </label>
+  <input
+    type="date"
+    name="next_emi_date_dom"
+    value={formData.next_emi_date_dom}
+    onChange={handleChange}
+    required
+  />
+</div>
+
+<div className="form-field">
+  <label>
+    EMI Amount <span>*</span>
+  </label>
+  <input
+    type="number"
+    name="emi_amount"
+    value={formData.emi_amount}
+    onChange={handleChange}
+    min="0"
+    step="0.01"
+    required
+  />
+</div>
+
+<div className="form-field">
+  <label>
+    Branch Code <span>*</span>
+  </label>
+  <select
+    name="branch_code"
+    value={formData.branch_code}
+    onChange={handleChange}
+    required
+  >
+    <option value="">Select branch</option>
+    <option value="BLR01">BLR01</option>
+    <option value="DEL01">DEL01</option>
+    <option value="HYD01">HYD01</option>
+    <option value="MUM01">MUM01</option>
+    <option value="PUN01">PUN01</option>
+  </select>
+</div>
 
           </div>
 

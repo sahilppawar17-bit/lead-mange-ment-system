@@ -97,8 +97,34 @@ if (
 ) {
     const emiDate = String(row.next_emi_date_dom).trim();
 
+    // First, check the required YYYY-MM-DD format.
     if (!/^\d{4}-\d{2}-\d{2}$/.test(emiDate)) {
-        errors.push("next_emi_date_dom must use YYYY-MM-DD format");
+        errors.push(
+            "next_emi_date_dom must use YYYY-MM-DD format"
+        );
+    } else {
+        // Extract the year, month, and day components.
+        const [year, month, day] = emiDate
+            .split("-")
+            .map(Number);
+
+        // JavaScript months are zero-based, so subtract 1.
+        const parsedDate = new Date(
+            Date.UTC(year, month - 1, day)
+        );
+
+        // Compare the parsed components to the original values.
+        // This catches dates such as February 30.
+        const isRealDate =
+            parsedDate.getUTCFullYear() === year &&
+            parsedDate.getUTCMonth() === month - 1 &&
+            parsedDate.getUTCDate() === day;
+
+        if (!isRealDate) {
+            errors.push(
+                "next_emi_date_dom must be a valid calendar date"
+            );
+        }
     }
 }
 

@@ -1,0 +1,11 @@
+row_number,error_reason
+101,"full_name is required"
+201,"phone_mobile must contain exactly 10 digits"
+301,"branch_code is not a valid branch code"
+401,"lead_status must be High, Medium, or Low"
+501,"age must be a valid integer between 18 and 120"
+601,"country_code is required"
+701,"next_emi_date_dom must use YYYY-MM-DD format"
+801,"emi_amount must be a valid non-negative number"
+901,"duplicate loan_account_no in this import file"
+1001,"loan_account_no TEST002 already exists"

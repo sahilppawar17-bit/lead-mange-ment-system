@@ -1,0 +1,3 @@
+﻿full_name,age,phone_mobile,country_code,loan_account_no,next_emi_date_dom,emi_amount,branch_code,lead_status
+Race Test One,30,9876543210,91,RACETEST001,2026-11-15,1500.00,BLR01,High
+Race Test Two,35,9876543211,91,RACETEST001,2026-11-15,1600.00,BLR01,Medium

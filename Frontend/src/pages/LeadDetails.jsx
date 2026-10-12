@@ -133,6 +133,39 @@ function LeadDetails() {
               )}
             </strong>
           </div>
+
+
+<div className="detail-item">
+  <span>Loan Account Number</span>
+  <strong>{lead.loan_account_no || "-"}</strong>
+</div>
+
+<div className="detail-item">
+  <span>Next EMI Date</span>
+  <strong>
+    {lead.next_emi_date_dom
+      ? lead.next_emi_date_dom.slice(0, 10)
+      : "-"}
+  </strong>
+</div>
+
+<div className="detail-item">
+  <span>EMI Amount</span>
+  <strong>
+    {lead.emi_amount != null
+      ? Number(lead.emi_amount).toLocaleString("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "-"}
+  </strong>
+</div>
+
+<div className="detail-item">
+  <span>Branch Code</span>
+  <strong>{lead.branch_code || "-"}</strong>
+</div>
+
           <div className="detail-item">
             <span>Lead Status</span>
             <strong>{lead.lead_status || "-"}</strong>

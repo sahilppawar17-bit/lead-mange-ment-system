@@ -1,0 +1,4 @@
+full_name,age,phone_mobile,country_code,loan_account_no,next_emi_date_dom,emi_amount,branch_code,lead_status
+Test User One,30,9876543210,91,STREAMTEST001,2026-11-15,1500.00,BLR01,High
+,35,9876543211,91,STREAMTEST002,2026-11-15,1600.00,BLR01,Medium
+Test User Three,42,9876543212,91,STREAMTEST003,2026-11-15,1700.00,BLR01,Low

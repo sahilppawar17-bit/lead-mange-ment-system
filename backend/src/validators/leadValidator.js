@@ -49,27 +49,29 @@ const createLeadValidator = [
         .withMessage("full_name is required")
         .bail()
         .isString()
-        .withMessage("full_name must be a String")
+        .withMessage("full_name must be a string")
         .bail()
         .trim()
-        .isLength({ min: 2, max: 150})
+        .isLength({ min: 2, max: 150 })
         .withMessage("full_name must be between 2 and 150 characters"),
 
     body("age")
         .exists()
-        .withMessage("Age is required")
+        .withMessage("age is required")
         .bail()
-        .isInt({ min: 1, max: 100})
-        .withMessage("Age must be an integer between 1 and 100")
+        .isInt({ min: 18, max: 120 })
+        .withMessage("age must be an integer between 18 and 120")
         .toInt(),
 
     body("phone_mobile")
-    .notEmpty()
-    .withMessage("phone_mobile is required")
-    .isString()
-    .withMessage("phone_mobile must be a string")
-    .matches(/^\d{10}$/)
-    .withMessage("phone_mobile must be exactly 10 digits"), 
+        .exists()
+        .withMessage("phone_mobile is required")
+        .bail()
+        .isString()
+        .withMessage("phone_mobile must be a string")
+        .bail()
+        .matches(/^\d{10}$/)
+        .withMessage("phone_mobile must be exactly 10 digits"),
 
     body("country_code")
         .exists()
@@ -79,17 +81,69 @@ const createLeadValidator = [
         .withMessage("country_code must be a string")
         .bail()
         .trim()
-        .isLength({ min: 1,max: 7})
+        .isLength({ min: 1, max: 7 })
         .withMessage("country_code must be between 1 and 7 characters"),
+
+    body("loan_account_no")
+        .exists()
+        .withMessage("loan_account_no is required")
+        .bail()
+        .isString()
+        .withMessage("loan_account_no must be a string")
+        .bail()
+        .trim()
+        .notEmpty()
+        .withMessage("loan_account_no cannot be empty")
+        .bail()
+        .isLength({ max: 100 })
+        .withMessage("loan_account_no cannot exceed 100 characters"),
+
+    body("next_emi_date_dom")
+        .exists()
+        .withMessage("next_emi_date_dom is required")
+        .bail()
+        .isISO8601({ strict: true })
+        .withMessage("next_emi_date_dom must be a valid date in YYYY-MM-DD format")
+        .bail()
+        .custom((value) => {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                throw new Error("Date must use YYYY-MM-DD format");
+            }
+
+            const date = new Date(`${value}T00:00:00Z`);
+
+            if (
+                Number.isNaN(date.getTime()) ||
+                date.toISOString().slice(0, 10) !== value
+            ) {
+                throw new Error("next_emi_date_dom must be a real calendar date");
+            }
+
+            return true;
+        }),
+
+    body("emi_amount")
+        .exists()
+        .withMessage("emi_amount is required")
+        .bail()
+        .isFloat({ min: 0 })
+        .withMessage("emi_amount must be a non-negative number")
+        .toFloat(),
+
+    body("branch_code")
+        .exists()
+        .withMessage("branch_code is required")
+        .bail()
+        .isIn(["BLR01", "DEL01", "HYD01", "MUM01", "PUN01"])
+        .withMessage("branch_code must be a valid branch code"),
 
     body("lead_status")
         .exists()
-        .withMessage("Lead_status is required")
+        .withMessage("lead_status is required")
         .bail()
         .isIn(["High", "Medium", "Low"])
         .withMessage("lead_status must be High, Medium, or Low")
 ];
-
 
 // PUT Validation
 
@@ -106,6 +160,10 @@ const updateLeadValidator = [
                 "age",
                 "phone_mobile",
                 "country_code",
+                "loan_account_no",
+                "next_emi_date_dom",
+                "emi_amount",
+                "branch_code",
                 "lead_status"
             ];
 
@@ -139,7 +197,7 @@ const updateLeadValidator = [
 
     body("age")
         .optional()
-        .isInt({ min: 1, max: 60})
+        .isInt({ min: 18, max: 60})
         .withMessage("age must be an integer between 1 and 60")
         .toInt(),
 
@@ -160,6 +218,51 @@ const updateLeadValidator = [
         .trim()
         .isLength({ min: 1,max: 7})
         .withMessage("country_code must be between 1 and 7 characters"),
+
+    body("loan_account_no")
+        .optional()
+        .isString()
+        .withMessage("loan_account_no must be a string")
+        .bail()
+        .trim()
+        .notEmpty()
+        .withMessage("loan_account_no cannot be empty")
+        .bail()
+        .isLength({ max: 100 })
+        .withMessage("loan_account_no cannot exceed 100 characters"),
+
+    body("next_emi_date_dom")
+        .optional()
+        .isISO8601({ strict: true })
+        .withMessage("next_emi_date_dom must be a valid date in YYYY-MM-DD format")
+        .bail()
+        .custom((value) => {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                throw new Error("Date must use YYYY-MM-DD format");
+            }
+
+            const date = new Date(`${value}T00:00:00Z`);
+
+            if (
+                Number.isNaN(date.getTime()) ||
+                date.toISOString().slice(0, 10) !== value
+            ) {
+                throw new Error("next_emi_date_dom must be a real calendar date");
+            }
+
+            return true;
+        }),
+
+    body("emi_amount")
+        .optional()
+        .isFloat({ min: 0 })
+        .withMessage("emi_amount must be a non-negative number")
+        .toFloat(),
+
+    body("branch_code")
+        .optional()
+        .isIn(["BLR01", "DEL01", "HYD01", "MUM01", "PUN01"])
+        .withMessage("branch_code must be a valid branch code"),
 
     body("lead_status")
         .optional()

@@ -1,0 +1,4 @@
+row_number,error_reason
+3,"full_name is required"
+2,"loan_account_no STREAMTEST001 already exists"
+4,"loan_account_no STREAMTEST003 already exists"
