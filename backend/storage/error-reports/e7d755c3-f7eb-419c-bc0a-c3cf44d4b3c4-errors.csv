@@ -1,0 +1,2 @@
+row_number,error_reason
+2,"full_name is required; age is required; phone_mobile is required; country_code is required; loan_account_no is required; next_emi_date_dom is required; emi_amount is required; branch_code is required; lead_status is required"

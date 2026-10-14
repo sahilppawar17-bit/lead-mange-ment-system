@@ -1,6 +1,5 @@
 
-/*
- * Task 7: Stream validation errors into a CSV report while respecting
+/*Stream validation errors into a CSV report while respecting
  * writable-stream backpressure to help control memory usage.
  */
 

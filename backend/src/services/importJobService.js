@@ -2,6 +2,11 @@
 
 const pool = require("../db");
 
+const fs = require("fs");
+const readline = require("readline");
+
+const { parse } = require("csv-parse");
+
 const updateImportProgress = async (jobId, progress) => {
     await pool.query(
         `
@@ -65,6 +70,43 @@ const failImportJob = async (jobId) => {
     );
 };
 
+const getImportErrors = async (reportPath, limit = 100) => {
+if (!reportPath || !fs.existsSync(reportPath)) {
+return [];
+}
+
+const errors = [];
+const input = fs.createReadStream(reportPath);
+
+const parser = input.pipe(
+    parse({
+        columns: ["row_number", "error_reason"],
+        from_line: 2,
+        relax_column_count: true,
+        skip_empty_lines: true
+    })
+);
+
+try {
+    for await (const record of parser) {
+        errors.push({
+            rowNumber: Number(record.row_number),
+            reason: record.error_reason
+        });
+
+        if (errors.length >= limit) {
+            break;
+        }
+    }
+} finally {
+    input.destroy();
+    parser.destroy();
+}
+
+return errors;
+
+};
+
 const getImportJob = async (jobId) => {
     const result = await pool.query(
         `
@@ -86,7 +128,15 @@ const getImportJob = async (jobId) => {
         [jobId]
     );
 
-    return result.rows[0] || null;
+    const job = result.rows[0];
+
+    if (!job) {
+        return null;
+    }
+
+    job.errors = await getImportErrors(job.error_report_path);
+
+    return job;
 };
 
 /* Mark jobs left in processing state by a previous server

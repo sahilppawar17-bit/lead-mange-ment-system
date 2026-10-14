@@ -11,14 +11,18 @@ const path = require("path");
 //Service used to retrieve import job progress.
 const {getImportJob} = require("../services/importJobService");
 
+// BullMQ queue used to schedule background lead imports.
+const { importQueue } = require("../queues/importQueue");
+
 // POST /api/imports
+
 const createImport = async (req, res, next) => {
+    let jobId;
+    let filePath;
 
     try {
-// 1. Check that Multer actually received a file
-        
+        // Check that Multer received an uploaded file.
         if (!req.file) {
-
             return res.status(400).json({
                 success: false,
                 error: {
@@ -28,14 +32,16 @@ const createImport = async (req, res, next) => {
             });
         }
 
-        // 2. Generate a unique ID for this import job
-        const jobId = randomUUID();
+        // Keep the uploaded file path for cleanup if enqueueing fails.
+        filePath = req.file.path;
 
+        // Generate a unique ID shared by PostgreSQL and BullMQ.
+        jobId = randomUUID();
 
-        // 3. Get the authenticated user ID
+        // Get the authenticated user's ID.
         const uploadedBy = req.user?.userId || null;
-        
-        // 4. Store the job in PostgreSQL
+
+        // Create the database job before adding it to the queue.
         await pool.query(
             `
             INSERT INTO import_jobs (
@@ -50,14 +56,98 @@ const createImport = async (req, res, next) => {
             [
                 jobId,
                 req.file.originalname,
-                req.file.path,
+                filePath,
                 "queued",
                 uploadedBy
             ]
         );
 
-        // 5. Return immediately
+        
+        try {
+            // Submit the job using the same ID as its database record.
+            await importQueue.add(
+                "process-import",
+                { jobId },
+                { jobId }
+            );
+        } catch (queueError) {
+            // Redis may have accepted the job before the connection failed.
+            let queuedJob;
+            let lookupSucceeded = false;
 
+            try {
+                // Check whether BullMQ contains the submitted job.
+                queuedJob = await importQueue.getJob(jobId);
+                lookupSucceeded = true;
+            } catch (lookupError) {
+                // The queue state is unknown if Redis cannot be reached.
+                console.error(
+                    "[Import Controller] Could not verify queue job:",
+                    lookupError
+                );
+            }
+
+            if (lookupSucceeded && queuedJob) {
+                // Preserve the file and database record for an accepted job.
+                console.warn(
+                    `[Import Controller] Job ${jobId} exists in BullMQ ` +
+                    "despite an enqueue error."
+                );
+
+                // Let the client check the existing job instead of retrying.
+                return res.status(202).json({
+                    success: true,
+                    data: {
+                        jobId,
+                        status: "queued",
+                        message:
+                            "The job exists in the queue. Check its status."
+                    }
+                });
+            }
+
+            if (lookupSucceeded && queuedJob === null) {
+                // Mark failed only when Redis confirms the job is absent.
+                try {
+                    await pool.query(
+                        `
+                        UPDATE import_jobs
+                        SET status = 'failed',
+                            completed_at = CURRENT_TIMESTAMP
+                        WHERE id = $1
+                          AND status = 'queued'
+                        `,
+                        [jobId]
+                    );
+
+                    // Remove the file only after confirming no queued job exists.
+                    await fs.promises.unlink(filePath).catch((cleanupError) => {
+                        console.error(
+                            "[Import Controller] Could not remove upload:",
+                            cleanupError
+                        );
+                    });
+                } catch (databaseError) {
+                    // Preserve the original queue error for reporting.
+                    console.error(
+                        "[Import Controller] Could not reconcile job:",
+                        databaseError
+                    );
+                }
+            } else if (!lookupSucceeded) {
+                // Do not delete the file when queue acceptance is uncertain.
+                console.error(
+                    `[Import Controller] Queue state for job ${jobId} ` +
+                    "is unknown. Preserving the database record and file."
+                );
+            }
+
+            // Pass the original enqueue error to Express.
+            throw queueError;
+        }
+
+
+        // Return HTTP 202 only after BullMQ accepts the job.
         return res.status(202).json({
             success: true,
             data: {
@@ -65,8 +155,22 @@ const createImport = async (req, res, next) => {
                 status: "queued"
             }
         });
-
     } catch (error) {
+        // If a database insert failed before a job was created,
+        // remove the uploaded file to avoid leaving an orphan behind.
+        if (!jobId && filePath) {
+            try {
+                await fs.promises.unlink(filePath);
+            } catch (cleanupError) {
+                // Log cleanup failures without hiding the original error.
+                console.error(
+                    "[Import Controller] Could not clean up upload:",
+                    cleanupError
+                );
+            }
+        }
+
+        // Let the existing Express error handler format the response.
         return next(error);
     }
 };
@@ -99,6 +203,7 @@ const getImportStatus = async (req, res, next) => {
                 processed: job.processed,
                 succeeded: job.succeeded,
                 failed: job.failed,
+                errors: Array.isArray(job.errors)? job.errors.slice(0, 100): [],
                 errorReportUrl: job.error_report_path? `/api/imports/${job.id}/errors`: null,
                 createdAt: job.created_at,
                 startedAt: job.started_at,

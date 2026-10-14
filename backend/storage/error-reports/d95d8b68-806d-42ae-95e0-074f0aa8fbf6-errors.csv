@@ -1,0 +1,2 @@
+row_number,error_reason
+2,"country_code must be a supported ISO country code or dialing code"

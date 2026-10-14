@@ -13,8 +13,12 @@ const errorHandler = require("./middleware/errorHandler");
 
 const authRoutes = require("./routes/authRoutes");
 
-const {startImportWorker} = require("./workers/importWorker");
-const { recoverAbandonedImportJobs } = require("./services/importJobService")
+// Start the BullMQ worker instead of the old PostgreSQL polling worker.
+const { startBullMQImportWorker } = require("./workers/bullmqImportWorker");
+
+// Import the queue so its Redis connection can also close during shutdown.
+const { importQueue } = require("./queues/importQueue");
+
 const app = express();
 
 const PORT = process.env.PORT || 3000;
@@ -48,35 +52,62 @@ const server = app.listen(PORT, () => {
 });
 
 
-/*Recover abandoned jobs before starting the background worker.*/
-let stopImportWorker;
+// Start the BullMQ worker after the HTTP server has been created.
+let importWorker;
 
-const startWorkerSafely = async () => {
-    try {
-        const abandonedJobs = await recoverAbandonedImportJobs();
+try {
+    importWorker = startBullMQImportWorker();
+    console.log("[BullMQ Import Worker] Started.");
+} catch (error) {
+    // Report startup errors rather than silently running without a worker.
+    console.error("[BullMQ Import Worker] Could not start:", error);
+    process.exitCode = 1;
+}
 
-        for (const job of abandonedJobs) {
-            console.warn(
-                `[Import Worker] Marked abandoned job ${job.id} ` +
-                `(${job.original_filename}) as failed.`
-            );
-        }
 
-        stopImportWorker = startImportWorker();
-    } catch (error) {
-        console.error(
-            "[Import Worker] Could not recover abandoned jobs:",
-            error
-        );
+ // Automatically recover queued imports that were not added to BullMQ.
+ const recoverQueuedImports = async () => {
+     try {
+         // Find older queued jobs that may have missed queue submission.
+         const result = await pool.query(`
+             SELECT id
+             FROM import_jobs
+             WHERE status = 'queued'
+               AND created_at < CURRENT_TIMESTAMP - INTERVAL '15 seconds'
+             ORDER BY created_at ASC
+             LIMIT 50
+         `);
 
-        // Do not start polling if recovery could not be completed.
-        process.exitCode = 1;
-        server.close();
-    }
-};
+         // Re-submit each job using its existing database ID.
+         for (const job of result.rows) {
+             // Check Redis before attempting to add the job.
+             const existingJob = await importQueue.getJob(job.id);
 
-void startWorkerSafely();
+             // Do not add a duplicate when BullMQ already has the job.
+             if (!existingJob) {
+                 await importQueue.add(
+                     "process-import",
+                     { jobId: job.id },
+                     { jobId: job.id }
+                 );
 
+                 console.log(`[Import Recovery] Re-enqueued job ${job.id}`);
+             }
+         }
+     } catch (error) {
+         // Retry during the next cycle if PostgreSQL or Redis is unavailable.
+         console.error(
+             "[Import Recovery] Recovery check failed:",
+             error.message
+         );
+     }
+ };
+
+ // Check once at startup and repeat every 15 seconds.
+ recoverQueuedImports();
+ const importRecoveryTimer = setInterval(recoverQueuedImports, 15000);
+// Confirm that automatic queued-job recovery is enabled.
+console.log("[Import Recovery] Automatic recovery enabled.");
 
 let isShuttingDown = false;
 
@@ -87,22 +118,29 @@ const shutdown = (signal) => {
 
     isShuttingDown = true;
 
+    // Stop recovery checks before closing Redis and PostgreSQL.
+clearInterval(importRecoveryTimer);
+
     console.log(`${signal} received. Shutting down gracefully...`);
 
-    // Stop accepting new HTTP requests.
+    // Stop accepting new HTTP requests before closing background services.
     server.close(async () => {
         try {
-            // Stop worker polling and wait for its active job.
-            if(stopImportWorker){
-                await stopImportWorker();
+            // Stop the BullMQ worker and wait for its active job.
+            if (importWorker) {
+                await importWorker.close();
             }
 
-            // Close PostgreSQL only after the worker finishes.
+            // Close the queue's Redis connection.
+            await importQueue.close();
+
+            // Close PostgreSQL after the worker has stopped.
             await pool.end();
 
-            console.log("PostgreSQL pool closed.");
+            console.log("BullMQ, Redis queue, and PostgreSQL closed.");
             process.exit(0);
         } catch (error) {
+            // Exit with an error if graceful shutdown fails.
             console.error("Error during shutdown:", error);
             process.exit(1);
         }

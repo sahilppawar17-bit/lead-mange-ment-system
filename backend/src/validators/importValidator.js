@@ -14,6 +14,20 @@ const REQUIRED_FIELDS = [
 
 const VALID_LEAD_STATUSES = ["High", "Medium", "Low"];
 
+const VALID_COUNTRY_CODES = new Set([
+    "IN", "US", "GB", "CA", "AU", "AE", "SG",
+    "NZ", "ZA", "DE", "FR", "IT", "ES", "JP",
+    "CN", "BR", "PK", "BD", "LK", "NP"
+]);
+
+const VALID_DIALING_CODES = new Set([
+    "+1", "+7", "+20", "+27", "+30", "+31", "+33",
+    "+34", "+39", "+44", "+49", "+52", "+55",
+    "+60", "+61", "+62", "+63", "+64", "+65",
+    "+66", "+81", "+82", "+84", "+86", "+90",
+    "+91", "+92", "+94", "+971", "+966"
+]);
+
 // Branch codes currently recognized by the existing lead data.
 const VALID_BRANCH_CODES = new Set([
     "BLR01",
@@ -48,6 +62,27 @@ if (
     if (!Number.isInteger(age) || age < 18 || age > 120) {
         errors.push("age must be a valid integer between 18 and 120");
     }
+}
+
+// Validate country code against supported ISO or dialing codes.
+if (
+row.country_code !== undefined &&
+row.country_code !== null &&
+String(row.country_code).trim() !== ""
+) {
+const countryCode = String(row.country_code)
+.trim()
+.toUpperCase();
+
+if (
+    !VALID_COUNTRY_CODES.has(countryCode) &&
+    !VALID_DIALING_CODES.has(countryCode)
+) {
+    errors.push(
+        "country_code must be a supported ISO country code or dialing code"
+    );
+}
+
 }
 
 // Validate phone number only when a value was provided.
@@ -136,8 +171,8 @@ if (
 ) {
     const emiAmount = Number(row.emi_amount);
 
-    if (!Number.isFinite(emiAmount) || emiAmount < 0) {
-        errors.push("emi_amount must be a valid non-negative number");
+    if(!Number.isFinite(emiAmount) || emiAmount <= 0) {
+         errors.push("emi_amount must be a number greater than 0");
     }
 }
 

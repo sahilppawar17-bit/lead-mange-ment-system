@@ -94,9 +94,11 @@ const getCellValue = (
     }
 
     if (value instanceof Date) {
-        return value
-            .toISOString()
-            .slice(0, 10);
+        if (Number.isNaN(value.getTime())) {
+            return "";
+        }
+
+        return value.toISOString().slice(0, 10);
     }
 
     return value;
@@ -177,10 +179,11 @@ const readXlsxRows = async function* (filePath) {
 
                 if (
                     header === "next_emi_date_dom" &&
-                    typeof value === "number"
+                    typeof value === "number" &&
+                    Number.isFinite(value) &&
+                    value > 0
                 ) {
-                    value =
-                        excelSerialToDate(value);
+                    value = excelSerialToDate(value);
                 }
 
                 rowData[header] = value;
