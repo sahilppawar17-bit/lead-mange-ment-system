@@ -3,7 +3,8 @@ import {
     Users,
     Settings,
     LogOut,
-    FileSpreadsheet
+    FileSpreadsheet,
+    Files
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -30,8 +31,8 @@ function Sidebar() {
         role === "team_lead"
             ? "Team Lead"
             : role === "user"
-            ? "User"
-            : "User";
+                ? "User"
+                : "User";
 
     return (
         <aside className="sidebar">
@@ -66,17 +67,25 @@ function Sidebar() {
                 </NavLink>
 
                 {(role === "admin" || role === "team_lead") && (
+                    <NavLink
+                        to="/imports"
+                        className={({ isActive }) =>
+                            `nav-item ${isActive ? "active" : ""}`
+                        }
+                    >
+                        <FileSpreadsheet size={20} />
+                        <span>Bulk Import</span>
+                    </NavLink>
+                )}
                 <NavLink
-                    to="/imports"
+                    to="/files"
                     className={({ isActive }) =>
                         `nav-item ${isActive ? "active" : ""}`
                     }
                 >
-                    <FileSpreadsheet size={20} />
-                    <span>Bulk Import</span>
+                    <Files size={20} />
+                    <span>Files</span>
                 </NavLink>
-                )}
-
                 <NavLink
                     to="/settings"
                     className={({ isActive }) =>

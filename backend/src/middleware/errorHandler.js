@@ -34,6 +34,33 @@ const errorHandler = (err, req, res, next) => {
             }
         });
     }
+    // Multer upload errors
+if (err instanceof require("multer").MulterError) {
+  const tooLarge = err.code === "LIMIT_FILE_SIZE";
+
+  return res.status(tooLarge ? 413 : 400).json({
+    success: false,
+    error: {
+      code: tooLarge ? "FILE_TOO_LARGE" : err.code,
+      message: tooLarge
+        ? "Uploaded file exceeds the maximum allowed size"
+        : "Invalid file upload",
+    },
+  });
+}
+
+// File validation errors
+if (err.statusCode === 413 || err.statusCode === 415) {
+  return res.status(err.statusCode).json({
+    success: false,
+    error: {
+      code: err.statusCode === 413
+        ? "FILE_TOO_LARGE"
+        : "UNSUPPORTED_FILE_TYPE",
+      message: err.message,
+    },
+  });
+}
 
     //Unexpected errors
     return res.status(500).json({

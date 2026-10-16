@@ -2,6 +2,7 @@
 npm install express pg dotenv express-validator
 
 npm install jsonwebtoken
+npm install multer file-type yauzl
 
 //Development Tool
 npm install --save-dev nodemon

@@ -12,7 +12,7 @@ import LeadDetails from "./pages/LeadDetails";
 import EditLead from "./pages/EditLead";
 import Settings from "./pages/Settings";
 import BulkImport from "./pages/BulkImport";
-
+import FileUpload from "./pages/FileUpload";
 function DashboardLayout({ children }) {
   return (
     <div className="app">
@@ -112,7 +112,16 @@ function App() {
               </ProtectedRoute>
             }
         />
-
+        <Route
+          path="/files"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <FileUpload />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
       </Routes>    
     </BrowserRouter>
   );

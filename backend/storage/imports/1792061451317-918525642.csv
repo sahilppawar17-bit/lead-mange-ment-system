@@ -1,0 +1,6 @@
+first_name,last_name,email,phone_mobile,company,lead_source,status,loan_account_no,amount_due,emi_amount,assigned_to
+Aarav,Sharma,aarav.sharma@example.com,9876543210,Bright Future Pvt Ltd,Website,New,LN10001,25000,3500,teamlead@example.com
+Priya,Patel,priya.patel@example.com,9876501234,Green Leaf Traders,Referral,Contacted,LN10002,18000,2400,agent1@example.com
+Rohan,Verma,rohan.verma@example.com,9123456780,Verma Enterprises,Cold Call,Qualified,LN10003,42000,5200,agent2@example.com
+Ananya,Desai,ananya.desai@example.com,9988776655,Desai Solutions,Advertisement,New,LN10004,0,0,agent1@example.com
+Kabir,Joshi,kabir.joshi@example.com,9000012345,Joshi Retail,Partner,In Progress,LN10005,12500,1800,teamlead@example.com

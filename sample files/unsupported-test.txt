@@ -1,0 +1,1 @@
+This text file is intentionally for unsupported file type testing.

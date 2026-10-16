@@ -7,6 +7,7 @@ const importRoutes = require("./routes/importRoutes");
 
 //Access the shared PostgreSQL pool for graceful shutdown.
 const pool = require("./db");
+const fileRoutes = require("./routes/fileRoutes");
 
 const leadRoutes = require("./routes/leadRoutes");
 const errorHandler = require("./middleware/errorHandler");
@@ -36,6 +37,8 @@ app.use("/api/leads", leadRoutes);
 //Register the lead import API.
 app.use("/api/imports", importRoutes);
 
+// New generic file upload service
+app.use("/api/files", fileRoutes);
 app.use((req, res) => {
     res.status(404).json({
         success: false,

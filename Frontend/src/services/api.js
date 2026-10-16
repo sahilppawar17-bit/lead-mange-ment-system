@@ -1,12 +1,11 @@
 import axios from "axios";
 import { refreshAccessToken } from "./authService";
 
+
 const api = axios.create({
     baseURL: "http://localhost:3000/api",
-    headers: {
-        "Content-Type": "application/json",
-    },
 });
+
 
 // Attach access token to every request
 api.interceptors.request.use(

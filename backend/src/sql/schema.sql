@@ -154,3 +154,16 @@ CREATE TABLE refresh_tokens (
         ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS uploaded_files (
+    id BIGSERIAL PRIMARY KEY,
+    file_id VARCHAR(64) UNIQUE NOT NULL,
+    storage_key VARCHAR(255) UNIQUE NOT NULL,
+    original_name VARCHAR(255),
+    mime_type VARCHAR(100) NOT NULL,
+    size_bytes BIGINT NOT NULL,
+    uploaded_by BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_uploaded_files_uploaded_by
+ON uploaded_files(uploaded_by);
