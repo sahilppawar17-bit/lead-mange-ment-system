@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -45,7 +46,6 @@ function Login() {
     return (
         <div className="login-page">
             <div className="login-card">
-
                 <div className="login-logo">
                     <div className="login-logo-icon">L</div>
                     <h1>LeadFlow</h1>
@@ -116,7 +116,7 @@ function Login() {
                         className="login-button"
                         disabled={loading}
                     >
-                        {loading ? "Signing in...." : "Sign In"}
+                        {loading ? "Signing in..." : "Sign In"}
                     </button>
                 </form>
             </div>

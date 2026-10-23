@@ -1,7 +1,7 @@
 require("dotenv").config();
 const cors = require("cors");
 const express = require("express");
-
+const requestTimeout = require("./middleware/requestTimeout");
 //Import routes for CSV/XLSX lead uploads.
 const importRoutes = require("./routes/importRoutes");
 
@@ -29,7 +29,7 @@ app.use(
   })
 );
 app.use(express.json());
-
+app.use(requestTimeout);
 app.use("/api/auth", authRoutes);
 
 app.use("/api/leads", leadRoutes);
@@ -112,39 +112,24 @@ try {
 // Confirm that automatic queued-job recovery is enabled.
 console.log("[Import Recovery] Automatic recovery enabled.");
 
+
 let isShuttingDown = false;
 
 const shutdown = (signal) => {
-    if (isShuttingDown) {
-        return;
-    }
-
+    if (isShuttingDown) return;
     isShuttingDown = true;
 
-    // Stop recovery checks before closing Redis and PostgreSQL.
-clearInterval(importRecoveryTimer);
+    console.log(`${signal} received. Shutting down API...`);
 
-    console.log(`${signal} received. Shutting down gracefully...`);
-
-    // Stop accepting new HTTP requests before closing background services.
     server.close(async () => {
         try {
-            // Stop the BullMQ worker and wait for its active job.
-            if (importWorker) {
-                await importWorker.close();
-            }
-
-            // Close the queue's Redis connection.
-            await importQueue.close();
-
-            // Close PostgreSQL after the worker has stopped.
+            // This process owns its own PostgreSQL pool.
             await pool.end();
 
-            console.log("BullMQ, Redis queue, and PostgreSQL closed.");
+            console.log("API server and PostgreSQL pool closed.");
             process.exit(0);
         } catch (error) {
-            // Exit with an error if graceful shutdown fails.
-            console.error("Error during shutdown:", error);
+            console.error("API shutdown failed:", error);
             process.exit(1);
         }
     });
@@ -152,3 +137,4 @@ clearInterval(importRecoveryTimer);
 
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
+
