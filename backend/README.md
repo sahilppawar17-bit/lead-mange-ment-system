@@ -921,3 +921,23 @@ revoked:    false
 created_at: 2026-08-27 19:25:40.131312
 ```
 
+Before Pm2 & Ngnix 
+
+Task 9 — Baseline Load Test
+
+Environment: Before PM2/Nginx
+Tool:k6
+Endpoint:GET /api/leads?limit=50
+Virtual users: 10
+Duration: 30 seconds
+
+| Metric | Baseline |
+|---|---:|
+| Total HTTP requests | 2,830 |
+| Throughput | 94.06 requests/second |
+| p50 response time | 1.88 ms |
+| p95 response time | 13.34 ms |
+| p99 response time | 68.83 ms |
+| HTTP failure rate | 0.00% |
+
+

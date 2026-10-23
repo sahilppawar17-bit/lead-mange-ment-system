@@ -3,5 +3,9 @@
     "file-type": "^22.2.0",
     "multer": "^2.4.0",
     "yauzl": "^3.4.0"
+  },
+  "devDependencies": {
+    "autocannon": "^8.0.0",
+    "pm2": "^7.1.0"
   }
 }

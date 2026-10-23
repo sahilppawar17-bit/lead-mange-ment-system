@@ -62,6 +62,55 @@ if (err.statusCode === 413 || err.statusCode === 415) {
   });
 }
 
+    // The response may already have timed out.
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    // PostgreSQL statement timeout or explicit query cancellation.
+    if (err.code === "57014") {
+        res.set("Retry-After", "2");
+
+        return res.status(503).json({
+            success: false,
+            error: {
+                code: "DATABASE_QUERY_TIMEOUT",
+                message: "The database is busy. Please retry."
+            }
+        });
+    }
+
+    // PostgreSQL connection limit reached.
+    if (err.code === "53300") {
+        res.set("Retry-After", "2");
+
+        return res.status(503).json({
+            success: false,
+            error: {
+                code: "DATABASE_CAPACITY_EXCEEDED",
+                message: "The service is temporarily busy."
+            }
+        });
+    }
+
+    // Database startup or connection failures.
+    if (
+        err.code === "57P03" ||
+        err.code === "ECONNREFUSED" ||
+        err.code === "ETIMEDOUT"
+    ) {
+        res.set("Retry-After", "2");
+
+        return res.status(503).json({
+            success: false,
+            error: {
+                code: "DATABASE_UNAVAILABLE",
+                message: "The service is temporarily unavailable."
+            }
+        });
+    }
+
+
     //Unexpected errors
     return res.status(500).json({
         success: false,
